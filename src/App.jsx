@@ -99,7 +99,7 @@ export default function App(){
   const temps=[{k:'日期',v:now.toLocaleDateString('zh-CN')},{k:'时间',v:now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',hour12:false})},{k:'秒',v:now.toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false})}]
   const cols=['#FFFFFF','#E0E0E0','#BDBDBD','#9E9E9E','#616161','#333333','#000000','#FF6B6B','#FFB347','#FFD93D','#6BCB77','#4D96FF','#9B59B6']
 
-  return<div className="h-full flex flex-col bg-[#f5f5f7]">
+  return<div className="h-screen flex flex-col bg-[#f5f5f7] overflow-hidden select-none">
     {img&&<header className="flex-shrink-0 bg-white shadow-sm px-4 py-3 z-10 flex items-center justify-between">
       <h1 className="text-lg font-bold text-gray-800">水印添加器</h1>
       <button onClick={reset} className="px-4 py-2 bg-red-50 text-red-600 rounded-lg text-sm font-medium">换照片</button>

@@ -1,11 +1,12 @@
-import React,{useState,useEffect,useRef}from'react'
+import React,{useState,useEffect,useRef,useMemo}from'react'
 
 const fmt=n=>{if(n===null||n===undefined||isNaN(n))return'--';return Number(n).toFixed(2)}
 const pct=(a,b)=>b&&b!==0?((a-b)/b*100):null
 const arrow=v=>v===null?'':v>=0?'↑':'↓'
 
 function todayStr(){const d=new Date();return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`}
-function offsetDays(d){const t=new Date();t.setDate(t.getDate()+d);return `${t.getFullYear()}-${(t.getMonth()+1).toString().padStart(2,'0')}-${t.getDate().toString().padStart(2,'0')}`}
+function yestStr(){const d=new Date();d.setDate(d.getDate()-1);return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`}
+function offsetFrom(ds,days){const t=new Date(ds+'T00:00:00');t.setDate(t.getDate()+days);return `${t.getFullYear()}-${(t.getMonth()+1).toString().padStart(2,'0')}-${t.getDate().toString().padStart(2,'0')}`}
 
 const STATIONS=['镇宁2站','镇宁4站']
 const OILS=[
@@ -21,28 +22,25 @@ function save(k,db){localStorage.setItem(k,JSON.stringify(db))}
 // ============================================================
 // Template 0 — 柴油日报
 // ============================================================
-function DieselTemplate(){
+function DieselTemplate({dataDate,setDataDate}){
   const[db,setDB]=useState(()=>load('diesel_v3'))
   const[vals,setVals]=useState({'镇宁2站':'','镇宁4站':''})
   const[ydVals,setYdVals]=useState({'镇宁2站':'','镇宁4站':''})
   const[lyVals,setLyVals]=useState({'镇宁2站':'','镇宁4站':''})
   const[out,setOut]=useState('');const[cp,setCp]=useState(false)
   useEffect(()=>{save('diesel_v3',db)},[db])
-  const yd=offsetDays(-1),ly=offsetDays(-365)
+  const yd=offsetFrom(dataDate,-1),ly=offsetFrom(dataDate,-365)
   const get=(d,s)=>(db[d+'|'+s]||{}).diesel??null
-  // Auto-fill yesterday + last year from DB
   useEffect(()=>{for(const s of STATIONS){
     const v=get(yd,s);if(v!==null&&!ydVals[s])setYdVals(p=>({...p,[s]:String(v)}))
     const l=get(ly,s);if(l!==null&&!lyVals[s])setLyVals(p=>({...p,[s]:String(l)}))
-  }},[db])
+  }},[db,dataDate])
 
   const gen=()=>{
     let r=[]
     for(const s of STATIONS){
       const t=parseFloat(vals[s]);if(isNaN(t))continue
-      // Save today to DB
-      setDB(p=>({...p,[todayStr()+'|'+s]:{diesel:t,date:todayStr(),station:s}}))
-      // Save yesterday if manually entered (different from DB auto)
+      setDB(p=>({...p,[dataDate+'|'+s]:{diesel:t,date:dataDate,station:s}}))
       const ydN=parseFloat(ydVals[s]);if(!isNaN(ydN))setDB(p=>({...p,[yd+'|'+s]:{diesel:ydN,date:yd,station:s}}))
       const ln=parseFloat(lyVals[s]);if(!isNaN(ln))setDB(p=>({...p,[ly+'|'+s]:{diesel:ln,date:ly,station:s}}))
       const pv=!isNaN(ydN)&&ydN!==0?ydN:(get(yd,s)),l=get(ly,s)??ln
@@ -58,9 +56,9 @@ function DieselTemplate(){
     {STATIONS.map(s=>{const t=parseFloat(vals[s]),pv=parseFloat(ydVals[s]),l=get(ly,s)??parseFloat(lyVals[s])
       return<div key={s} className="bg-white rounded-xl shadow-sm p-4">
         <h3 className="font-semibold text-gray-800 mb-3">{s}</h3>
-        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">今日</span><input type="number" step="0.01" inputMode="decimal" value={vals[s]} onChange={e=>setVals(p=>({...p,[s]:e.target.value}))} placeholder="吨数" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
-        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">昨日</span><input type="number" step="0.01" inputMode="decimal" value={ydVals[s]} onChange={e=>setYdVals(p=>({...p,[s]:e.target.value}))} placeholder={get(yd,s)!==null?`${fmt(get(yd,s))}吨（自动）`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
-        <div className="flex items-center gap-2"><span className="text-sm text-gray-500 w-16">去年今日</span><input type="number" step="0.01" inputMode="decimal" value={lyVals[s]} onChange={e=>setLyVals(p=>({...p,[s]:e.target.value}))} placeholder={l!==null?`${fmt(l)}吨`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
+        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">当日</span><input type="number" step="0.01" inputMode="decimal" value={vals[s]} onChange={e=>setVals(p=>({...p,[s]:e.target.value}))} placeholder="吨数" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
+        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">昨日</span><input type="number" step="0.01" inputMode="decimal" value={ydVals[s]} onChange={e=>setYdVals(p=>({...p,[s]:e.target.value}))} placeholder={get(yd,s)!==null?`${fmt(get(yd,s))}吨`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
+        <div className="flex items-center gap-2"><span className="text-sm text-gray-500 w-16">去年</span><input type="number" step="0.01" inputMode="decimal" value={lyVals[s]} onChange={e=>setLyVals(p=>({...p,[s]:e.target.value}))} placeholder={l!==null?`${fmt(l)}吨`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
         {!isNaN(t)&&<div className="mt-3 pt-3 border-t border-gray-100 space-y-1 text-sm">
           {((!isNaN(pv)&&pv!==0)||get(yd,s)!==null)&&<R l="vs昨日" v={`${arrow(pct(t,pv||get(yd,s)))} ${Math.abs(pct(t,pv||get(yd,s))).toFixed(1)}%`} c={pct(t,pv||get(yd,s))>=0?'text-green-600':'text-red-500'}/>}
           {l!==null&&!isNaN(l)&&<R l="vs去年" v={`${arrow(pct(t,l))} ${Math.abs(pct(t,l)).toFixed(1)}%`} c={pct(t,l)>=0?'text-green-600':'text-red-500'}/>}
@@ -75,15 +73,14 @@ function DieselTemplate(){
 // ============================================================
 // Template 1 — 油品全类
 // ============================================================
-function OilTemplate(){
+function OilTemplate({dataDate}){
   const[db,setDB]=useState(()=>load('oil_v2'))
   const[vals,setVals]=useState(()=>{const o={};for(const s of STATIONS)for(const oi of OILS)o[s+'|'+oi.key]='';return o})
   const[out,setOut]=useState('');const[cp,setCp]=useState(false)
   const prevSums=useRef({})
   useEffect(()=>{save('oil_v2',db)},[db])
-  const yd=offsetDays(-1)
+  const yd=offsetFrom(dataDate,-1)
 
-  // Auto-calc light oil totals (safe: useEffect, not in render)
   useEffect(()=>{
     const updates={}
     for(const s of STATIONS){
@@ -102,7 +99,7 @@ function OilTemplate(){
       let sl=[],total=0
       for(const oi of OILS){
         const v=parseFloat(vals[s+'|'+oi.key]);if(isNaN(v))continue
-        setDB(p=>({...p,[todayStr()+'|'+s+'|'+oi.key]:{val:v,date:todayStr(),station:s,oil:oi.key}}))
+        setDB(p=>({...p,[dataDate+'|'+s+'|'+oi.key]:{val:v,date:dataDate,station:s,oil:oi.key}}))
         const pv=db[yd+'|'+s+'|'+oi.key]?.val??null
         let l=`  ${oi.name}：${fmt(v)}吨`
         if(pv!==null){const h=pct(v,pv);l+=`，环比${arrow(h)}${Math.abs(h).toFixed(1)}%`}
@@ -116,8 +113,7 @@ function OilTemplate(){
     {STATIONS.map(s=><div key={s} className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-3">{s}</h3>
       {OILS.filter(o=>o.key!=='lightOil').map(oi=><div key={oi.key} className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-20">{oi.name}</span><input type="number" step="0.01" inputMode="decimal" value={vals[s+'|'+oi.key]} onChange={e=>setVals(p=>({...p,[s+'|'+oi.key]:e.target.value}))} placeholder="吨" className="flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-xs text-gray-400">吨</span></div>)}
-        {/* lightOil auto-calc now in useEffect above */}
-        {(()=>{const total=parseFloat(vals[s+'|lightOil']);return !isNaN(total)&&total>0?<div className="text-sm text-gray-500 pt-1 mt-1 border-t border-gray-100">轻油合计: <span className="font-semibold text-gray-800">{fmt(total)} 吨</span></div>:null})()}
+      {(()=>{const total=parseFloat(vals[s+'|lightOil']);return !isNaN(total)&&total>0?<div className="text-sm text-gray-500 pt-1 mt-1 border-t border-gray-100">轻油合计: <span className="font-semibold text-gray-800">{fmt(total)} 吨</span></div>:null})()}
     </div>)}
     <button onClick={gen} className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-base font-medium">生成汇总并保存</button>
     {out&&<OB out={out} cp={cp} onCopy={()=>{navigator.clipboard.writeText(out);setCp(true);setTimeout(()=>setCp(false),2000)}}/>}
@@ -157,29 +153,23 @@ function GrowthTemplate(){
   const add=()=>setRows(p=>[...p,{id:Date.now(),name:'',now:'',prev:'',lastYear:''}])
   const del=id=>setRows(p=>p.filter(r=>r.id!==id))
   const up=(id,f,v)=>setRows(p=>p.map(r=>r.id===id?{...r,[f]:v}:r))
-
   return<div className="space-y-3">
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-1">通用环比同比计算</h3>
       <p className="text-xs text-gray-400 mb-3">不限品类，填当期/上期/同期任意数据即可算出</p>
-      {rows.map(r=>{
-        const n=parseFloat(r.now),p=parseFloat(r.prev),l=parseFloat(r.lastYear)
+      {rows.map(r=>{const n=parseFloat(r.now),p=parseFloat(r.prev),l=parseFloat(r.lastYear)
         return<div key={r.id} className="mb-3 pb-3 border-b border-gray-100 last:border-0 last:pb-0 last:mb-0">
-          <div className="flex items-center gap-2 mb-2">
-            <input type="text" value={r.name} onChange={e=>up(r.id,'name',e.target.value)} placeholder="名称（如：非油品收入）" className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#007AFF]"/>
-            <button onClick={()=>del(r.id)} className="text-xs text-red-400 px-2 py-1" disabled={rows.length<=1}>✕</button>
-          </div>
+          <div className="flex items-center gap-2 mb-2"><input type="text" value={r.name} onChange={e=>up(r.id,'name',e.target.value)} placeholder="名称" className="flex-1 px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#007AFF]"/><button onClick={()=>del(r.id)} className="text-xs text-red-400 px-2 py-1" disabled={rows.length<=1}>✕</button></div>
           <div className="grid grid-cols-3 gap-2">
             <div><label className="text-[10px] text-gray-400 block mb-0.5">当期</label><input type="number" step="0.01" inputMode="decimal" value={r.now} onChange={e=>up(r.id,'now',e.target.value)} placeholder="值" className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/></div>
-            <div><label className="text-[10px] text-gray-400 block mb-0.5">上期（环比）</label><input type="number" step="0.01" inputMode="decimal" value={r.prev} onChange={e=>up(r.id,'prev',e.target.value)} placeholder="值" className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/></div>
-            <div><label className="text-[10px] text-gray-400 block mb-0.5">同期（同比）</label><input type="number" step="0.01" inputMode="decimal" value={r.lastYear} onChange={e=>up(r.id,'lastYear',e.target.value)} placeholder="值" className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/></div>
+            <div><label className="text-[10px] text-gray-400 block mb-0.5">上期</label><input type="number" step="0.01" inputMode="decimal" value={r.prev} onChange={e=>up(r.id,'prev',e.target.value)} placeholder="值" className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/></div>
+            <div><label className="text-[10px] text-gray-400 block mb-0.5">同期</label><input type="number" step="0.01" inputMode="decimal" value={r.lastYear} onChange={e=>up(r.id,'lastYear',e.target.value)} placeholder="值" className="w-full px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/></div>
           </div>
           {(!isNaN(n)&&(!isNaN(p)||!isNaN(l)))&&<div className="flex gap-4 mt-2 text-xs">
             {!isNaN(p)&&p!==0&&<span className={n>=p?'text-green-600':'text-red-500'}>{r.name||'—'} 环比 {arrow(pct(n,p))} {Math.abs(pct(n,p)).toFixed(1)}%</span>}
             {!isNaN(l)&&l!==0&&<span className={n>=l?'text-green-600':'text-red-500'}>同比 {arrow(pct(n,l))} {Math.abs(pct(n,l)).toFixed(1)}%</span>}
           </div>}
-        </div>
-      })}
+        </div>})}
       <button onClick={add} className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium mt-2">+ 添加行</button>
     </div>
   </div>
@@ -193,35 +183,20 @@ function PercentTemplate(){
   const[v1,setV1]=useState('');const[v2,setV2]=useState('')
   const[vov,setVov]=useState('');const[v100,setV100]=useState('')
   return<div className="space-y-3">
-    {/* Part / Total */}
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-2">占比计算</h3>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <div><label className="text-xs text-gray-400 block mb-0.5">部分</label><input type="number" step="0.01" inputMode="decimal" value={a} onChange={e=>setA(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div>
-        <div><label className="text-xs text-gray-400 block mb-0.5">整体</label><input type="number" step="0.01" inputMode="decimal" value={b} onChange={e=>setB(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div>
-      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2"><div><label className="text-xs text-gray-400 block mb-0.5">部分</label><input type="number" step="0.01" inputMode="decimal" value={a} onChange={e=>setA(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div><div><label className="text-xs text-gray-400 block mb-0.5">整体</label><input type="number" step="0.01" inputMode="decimal" value={b} onChange={e=>setB(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div></div>
       {(!isNaN(parseFloat(a))&&!isNaN(parseFloat(b))&&b!=='0'&&b!=='')&&<div className="text-center py-2 bg-gray-50 rounded-lg text-sm font-medium">{fmt(a)} / {fmt(b)} = <span className="text-[#007AFF] text-base">{(parseFloat(a)/parseFloat(b)*100).toFixed(2)}%</span></div>}
     </div>
-    {/* X% of Y */}
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-2">百分比求值</h3>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <div><label className="text-xs text-gray-400 block mb-0.5">百分比</label><div className="flex items-center gap-1"><input type="number" step="0.01" inputMode="decimal" value={vov} onChange={e=>setVov(e.target.value)} placeholder="%" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-500 text-sm">%</span></div></div>
-        <div><label className="text-xs text-gray-400 block mb-0.5">基数</label><input type="number" step="0.01" inputMode="decimal" value={v100} onChange={e=>setV100(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div>
-      </div>
+      <div className="grid grid-cols-2 gap-2 mb-2"><div><label className="text-xs text-gray-400 block mb-0.5">百分比</label><div className="flex items-center gap-1"><input type="number" step="0.01" inputMode="decimal" value={vov} onChange={e=>setVov(e.target.value)} placeholder="%" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-500 text-sm">%</span></div></div><div><label className="text-xs text-gray-400 block mb-0.5">基数</label><input type="number" step="0.01" inputMode="decimal" value={v100} onChange={e=>setV100(e.target.value)} placeholder="值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div></div>
       {(!isNaN(parseFloat(vov))&&!isNaN(parseFloat(v100)))&&<div className="text-center py-2 bg-gray-50 rounded-lg text-sm font-medium">{fmt(vov)}% × {fmt(v100)} = <span className="text-[#007AFF] text-base">{fmt(parseFloat(vov)/100*parseFloat(v100))}</span></div>}
     </div>
-    {/* Change */}
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-2">涨跌幅度</h3>
-      <div className="grid grid-cols-2 gap-2 mb-2">
-        <div><label className="text-xs text-gray-400 block mb-0.5">变化前</label><input type="number" step="0.01" inputMode="decimal" value={v1} onChange={e=>setV1(e.target.value)} placeholder="旧值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div>
-        <div><label className="text-xs text-gray-400 block mb-0.5">变化后</label><input type="number" step="0.01" inputMode="decimal" value={v2} onChange={e=>setV2(e.target.value)} placeholder="新值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div>
-      </div>
-      {(!isNaN(parseFloat(v1))&&!isNaN(parseFloat(v2))&&v1!=='0'&&v1!=='')&&<div className="flex justify-between text-sm bg-gray-50 rounded-lg p-3">
-        <span>变动</span><span className="font-medium">{fmt(parseFloat(v2)-parseFloat(v1))}</span>
-        <span>幅度</span><span className={`font-medium ${parseFloat(v2)>=parseFloat(v1)?'text-green-600':'text-red-500'}`}>{arrow(pct(parseFloat(v2),parseFloat(v1)))} {Math.abs(pct(parseFloat(v2),parseFloat(v1))).toFixed(2)}%</span>
-      </div>}
+      <div className="grid grid-cols-2 gap-2 mb-2"><div><label className="text-xs text-gray-400 block mb-0.5">变化前</label><input type="number" step="0.01" inputMode="decimal" value={v1} onChange={e=>setV1(e.target.value)} placeholder="旧值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div><div><label className="text-xs text-gray-400 block mb-0.5">变化后</label><input type="number" step="0.01" inputMode="decimal" value={v2} onChange={e=>setV2(e.target.value)} placeholder="新值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div></div>
+      {(!isNaN(parseFloat(v1))&&!isNaN(parseFloat(v2))&&v1!=='0'&&v1!=='')&&<div className="flex justify-between text-sm bg-gray-50 rounded-lg p-3"><span>变动</span><span className="font-medium">{fmt(parseFloat(v2)-parseFloat(v1))}</span><span>幅度</span><span className={`font-medium ${parseFloat(v2)>=parseFloat(v1)?'text-green-600':'text-red-500'}`}>{arrow(pct(parseFloat(v2),parseFloat(v1)))} {Math.abs(pct(parseFloat(v2),parseFloat(v1))).toFixed(2)}%</span></div>}
     </div>
   </div>
 }
@@ -231,35 +206,41 @@ function PercentTemplate(){
 // ============================================================
 function AccumTemplate(){
   const[db,setDB]=useState(()=>load('accum_v1'))
-  const[entries,setEntries]=useState(()=>{const e=[];Object.entries(db).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,20).forEach(([k,v])=>e.push({id:k,name:v.name||'',val:String(v.val||''),date:v.date}));return e})
+  const[entries,setEntries]=useState(()=>{const e=[];Object.entries(db).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,30).forEach(([k,v])=>e.push({id:k,name:v.name||'',val:String(v.val||''),date:v.date}));return e})
   const[newName,setNewName]=useState('');const[newVal,setNewVal]=useState('')
   useEffect(()=>{save('accum_v1',db)},[db])
-
-  const add=()=>{
-    const v=parseFloat(newVal);if(isNaN(v)||!newName.trim())return
-    const id=todayStr()+'_'+Date.now()
-    setDB(p=>({...p,[id]:{name:newName,val:v,date:todayStr()}}))
-    setEntries(p=>[{id,name:newName,val:String(v),date:todayStr()},...p])
-    setNewName('');setNewVal('')
-  }
+  const add=()=>{const v=parseFloat(newVal);if(isNaN(v)||!newName.trim())return;const id=todayStr()+'_'+Date.now();setDB(p=>({...p,[id]:{name:newName,val:v,date:todayStr()}}));setEntries(p=>[{id,name:newName,val:String(v),date:todayStr()},...p]);setNewName('');setNewVal('')}
   const del=id=>{setDB(p=>{const n={...p};delete n[id];return n});setEntries(p=>p.filter(e=>e.id!==id))}
-
   let running=0;entries.slice().reverse().forEach(e=>{running+=parseFloat(e.val)||0;e.running=running})
-
   return<div className="space-y-3">
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-3">累加记账</h3>
-      <div className="flex gap-2 mb-2">
-        <input type="text" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="项目名" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#007AFF]"/>
-        <input type="number" step="0.01" inputMode="decimal" value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="数值" className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:border-[#007AFF]"/>
-        <button onClick={add} className="px-4 py-2 bg-[#007AFF] text-white rounded-lg text-sm font-medium">加</button>
-      </div>
+      <div className="flex gap-2 mb-2"><input type="text" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="项目名" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#007AFF]"/><input type="number" step="0.01" inputMode="decimal" value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="数值" className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:border-[#007AFF]"/><button onClick={add} className="px-4 py-2 bg-[#007AFF] text-white rounded-lg text-sm font-medium">加</button></div>
     </div>
     {entries.length>0&&<div className="bg-white rounded-xl shadow-sm p-4">
       <div className="flex justify-between items-center mb-2"><h3 className="font-semibold text-gray-800">累计: <span className="text-[#007AFF]">{fmt(running)}</span></h3><span className="text-xs text-gray-400">{entries.length} 条</span></div>
       <div className="space-y-1">{entries.map(e=><div key={e.id} className="flex items-center justify-between text-sm py-1.5 border-b border-gray-50 last:border-0"><div><span className="text-gray-400 text-xs mr-1">{e.date}</span><span>{e.name}</span></div><div className="flex items-center gap-2"><span className="font-medium">{fmt(parseFloat(e.val))}</span><span className="text-[10px] text-gray-400">累计 {fmt(e.running)}</span><button onClick={()=>del(e.id)} className="text-red-400 text-xs ml-1">✕</button></div></div>)}</div>
     </div>}
   </div>
+}
+
+// ============================================================
+// Export helper
+// ============================================================
+function exportCSV(){
+  const keys=['diesel_v3','oil_v2','accum_v1']
+  const rows=[['来源','日期','站点/项目','油品','数值']]
+  for(const key of keys){
+    try{const db=JSON.parse(localStorage.getItem(key)||'{}');for(const[k,v]of Object.entries(db)){
+      if(key==='diesel_v3')rows.push([key,v.date,v.station||'','柴油',String(v.diesel)])
+      else if(key==='oil_v2')rows.push([key,v.date,v.station||'',OILS.find(o=>o.key===v.oil)?.name||v.oil||'',String(v.val)])
+      else if(key==='accum_v1')rows.push([key,v.date,v.name||'','',String(v.val)])
+    }}catch{}
+  }
+  const csv=rows.map(r=>r.map(c=>`"${(c||'').replace(/"/g,'""')}"`).join(',')).join('\n')
+  const blob=new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'})
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`数据导出_${todayStr()}.csv`;a.click()
+  setTimeout(()=>URL.revokeObjectURL(a.href),2000)
 }
 
 // ============================================================
@@ -275,16 +256,23 @@ export default function Tracker(){
     {id:5,name:'累加记账'},
   ]
   const[tab,setTab]=useState(0)
+  const[dataDate,setDataDate]=useState(yestStr())
+
   return<div className="min-h-screen bg-[#f5f5f7] pb-6">
     <div className="bg-white shadow-sm sticky top-0 z-10">
-      <div className="px-4 py-3"><h1 className="text-lg font-bold text-gray-800">数据工具</h1><p className="text-xs text-gray-400 mt-0.5">{todayStr()}</p></div>
+      <div className="px-4 py-3 flex justify-between items-center">
+        <div><h1 className="text-lg font-bold text-gray-800">数据工具</h1><p className="text-xs text-gray-400 mt-0.5">数据日期: {dataDate}</p></div>
+        <button onClick={exportCSV} className="px-3 py-1.5 border border-gray-300 text-gray-600 rounded-lg text-xs font-medium">导出CSV</button>
+      </div>
+      {/* Date picker — only show in relevant tabs */}
+      {(tab===0||tab===1)&&<div className="px-4 pb-2"><div className="flex items-center gap-2"><span className="text-xs text-gray-400 whitespace-nowrap">数据日期</span><input type="date" value={dataDate} onChange={e=>setDataDate(e.target.value)} className="px-2 py-1 border border-gray-200 rounded text-sm focus:outline-none focus:border-[#007AFF]"/><span className="text-[10px] text-gray-300">报表对应数据日期</span></div></div>}
       <div className="flex gap-1 px-3 pb-2 overflow-x-auto">
         {tabs.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={`px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap ${tab===t.id?'bg-[#007AFF] text-white':'bg-gray-100 text-gray-700'}`}>{t.name}</button>)}
       </div>
     </div>
     <div className="px-4 pt-3 max-w-md mx-auto">
-      {tab===0&&<DieselTemplate/>}
-      {tab===1&&<OilTemplate/>}
+      {tab===0&&<DieselTemplate dataDate={dataDate} setDataDate={setDataDate}/>}
+      {tab===1&&<OilTemplate dataDate={dataDate}/>}
       {tab===2&&<ConverterTemplate/>}
       {tab===3&&<GrowthTemplate/>}
       {tab===4&&<PercentTemplate/>}
