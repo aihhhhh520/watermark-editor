@@ -1,4 +1,4 @@
-import React,{useState,useEffect}from'react'
+import React,{useState,useEffect,useRef}from'react'
 
 const fmt=n=>{if(n===null||n===undefined||isNaN(n))return'--';return Number(n).toFixed(2)}
 const pct=(a,b)=>b&&b!==0?((a-b)/b*100):null
@@ -70,8 +70,22 @@ function OilTemplate(){
   const[db,setDB]=useState(()=>load('oil_v2'))
   const[vals,setVals]=useState(()=>{const o={};for(const s of STATIONS)for(const oi of OILS)o[s+'|'+oi.key]='';return o})
   const[out,setOut]=useState('');const[cp,setCp]=useState(false)
+  const prevSums=useRef({})
   useEffect(()=>{save('oil_v2',db)},[db])
   const yd=offsetDays(-1)
+
+  // Auto-calc light oil totals (safe: useEffect, not in render)
+  useEffect(()=>{
+    const updates={}
+    for(const s of STATIONS){
+      const sum=OILS.filter(o=>o.key!=='lightOil').reduce((t,oi)=>t+(parseFloat(vals[s+'|'+oi.key])||0),0)
+      if(sum>0&&vals[s+'|lightOil']!==String(sum)&&prevSums.current[s]!==sum){
+        updates[s+'|lightOil']=String(sum)
+        prevSums.current[s]=sum
+      }
+    }
+    if(Object.keys(updates).length>0)setVals(p=>({...p,...updates}))
+  },[vals])
 
   const gen=()=>{
     let lines=[]
@@ -93,7 +107,8 @@ function OilTemplate(){
     {STATIONS.map(s=><div key={s} className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-3">{s}</h3>
       {OILS.filter(o=>o.key!=='lightOil').map(oi=><div key={oi.key} className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-20">{oi.name}</span><input type="number" step="0.01" inputMode="decimal" value={vals[s+'|'+oi.key]} onChange={e=>setVals(p=>({...p,[s+'|'+oi.key]:e.target.value}))} placeholder="吨" className="flex-1 px-3 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-xs text-gray-400">吨</span></div>)}
-      {(()=>{const sum=OILS.filter(o=>o.key!=='lightOil').reduce((t,oi)=>t+(parseFloat(vals[s+'|'+oi.key])||0),0);if(sum>0)setTimeout(()=>{if(vals[s+'|lightOil']!==String(sum))setVals(p=>({...p,[s+'|lightOil']:String(sum)}))},0);return null})()}
+        {/* lightOil auto-calc now in useEffect above */}
+        {(()=>{const total=parseFloat(vals[s+'|lightOil']);return !isNaN(total)&&total>0?<div className="text-sm text-gray-500 pt-1 mt-1 border-t border-gray-100">轻油合计: <span className="font-semibold text-gray-800">{fmt(total)} 吨</span></div>:null})()}
     </div>)}
     <button onClick={gen} className="w-full py-3.5 bg-[#007AFF] text-white rounded-xl text-base font-medium">生成汇总并保存</button>
     {out&&<OB out={out} cp={cp} onCopy={()=>{navigator.clipboard.writeText(out);setCp(true);setTimeout(()=>setCp(false),2000)}}/>}
