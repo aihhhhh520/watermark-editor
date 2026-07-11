@@ -24,20 +24,28 @@ function save(k,db){localStorage.setItem(k,JSON.stringify(db))}
 function DieselTemplate(){
   const[db,setDB]=useState(()=>load('diesel_v3'))
   const[vals,setVals]=useState({'镇宁2站':'','镇宁4站':''})
+  const[ydVals,setYdVals]=useState({'镇宁2站':'','镇宁4站':''})
   const[lyVals,setLyVals]=useState({'镇宁2站':'','镇宁4站':''})
   const[out,setOut]=useState('');const[cp,setCp]=useState(false)
   useEffect(()=>{save('diesel_v3',db)},[db])
   const yd=offsetDays(-1),ly=offsetDays(-365)
   const get=(d,s)=>(db[d+'|'+s]||{}).diesel??null
-  useEffect(()=>{for(const s of STATIONS){const v=get(ly,s);if(v!==null&&!lyVals[s])setLyVals(p=>({...p,[s]:String(v)}))}},[db])
+  // Auto-fill yesterday + last year from DB
+  useEffect(()=>{for(const s of STATIONS){
+    const v=get(yd,s);if(v!==null&&!ydVals[s])setYdVals(p=>({...p,[s]:String(v)}))
+    const l=get(ly,s);if(l!==null&&!lyVals[s])setLyVals(p=>({...p,[s]:String(l)}))
+  }},[db])
 
   const gen=()=>{
     let r=[]
     for(const s of STATIONS){
       const t=parseFloat(vals[s]);if(isNaN(t))continue
+      // Save today to DB
       setDB(p=>({...p,[todayStr()+'|'+s]:{diesel:t,date:todayStr(),station:s}}))
+      // Save yesterday if manually entered (different from DB auto)
+      const ydN=parseFloat(ydVals[s]);if(!isNaN(ydN))setDB(p=>({...p,[yd+'|'+s]:{diesel:ydN,date:yd,station:s}}))
       const ln=parseFloat(lyVals[s]);if(!isNaN(ln))setDB(p=>({...p,[ly+'|'+s]:{diesel:ln,date:ly,station:s}}))
-      const pv=get(yd,s),l=get(ly,s)??ln
+      const pv=!isNaN(ydN)&&ydN!==0?ydN:(get(yd,s)),l=get(ly,s)??ln
       let line=`${s}：柴油销量${fmt(t)}吨`
       if(pv!==null){const h=pct(t,pv);line+=`，上期销售${fmt(pv)}吨，环比${arrow(h)}${Math.abs(h).toFixed(1)}%`}
       if(l!==null&&!isNaN(l)){const tb=pct(t,l);line+=`，去年同期销售${fmt(l)}吨，同比${arrow(tb)}${Math.abs(tb).toFixed(1)}%`}
@@ -47,14 +55,15 @@ function DieselTemplate(){
   }
   const ok=STATIONS.every(s=>vals[s]&&!isNaN(parseFloat(vals[s])))
   return<div className="space-y-3">
-    {STATIONS.map(s=>{const t=parseFloat(vals[s]),pv=get(yd,s),l=get(ly,s)??parseFloat(lyVals[s])
+    {STATIONS.map(s=>{const t=parseFloat(vals[s]),pv=parseFloat(ydVals[s]),l=get(ly,s)??parseFloat(lyVals[s])
       return<div key={s} className="bg-white rounded-xl shadow-sm p-4">
         <h3 className="font-semibold text-gray-800 mb-3">{s}</h3>
-        <div className="flex items-center gap-2 mb-3"><span className="text-sm text-gray-500 w-16">今日柴油</span><input type="number" step="0.01" inputMode="decimal" value={vals[s]} onChange={e=>setVals(p=>({...p,[s]:e.target.value}))} placeholder="吨数" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
-        <div className="flex items-center gap-2"><span className="text-sm text-gray-400 w-16">去年同期</span><input type="number" step="0.01" inputMode="decimal" value={lyVals[s]} onChange={e=>setLyVals(p=>({...p,[s]:e.target.value}))} placeholder={l!==null?`${fmt(l)}吨`:'手动输入'} className="flex-1 px-2 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-xs text-gray-400">吨</span></div>
+        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">今日</span><input type="number" step="0.01" inputMode="decimal" value={vals[s]} onChange={e=>setVals(p=>({...p,[s]:e.target.value}))} placeholder="吨数" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
+        <div className="flex items-center gap-2 mb-2"><span className="text-sm text-gray-500 w-16">昨日</span><input type="number" step="0.01" inputMode="decimal" value={ydVals[s]} onChange={e=>setYdVals(p=>({...p,[s]:e.target.value}))} placeholder={get(yd,s)!==null?`${fmt(get(yd,s))}吨（自动）`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
+        <div className="flex items-center gap-2"><span className="text-sm text-gray-500 w-16">去年今日</span><input type="number" step="0.01" inputMode="decimal" value={lyVals[s]} onChange={e=>setLyVals(p=>({...p,[s]:e.target.value}))} placeholder={l!==null?`${fmt(l)}吨`:'吨数'} className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">吨</span></div>
         {!isNaN(t)&&<div className="mt-3 pt-3 border-t border-gray-100 space-y-1 text-sm">
-          {pv!==null&&<R l="环比" v={`${arrow(pct(t,pv))} ${Math.abs(pct(t,pv)).toFixed(1)}%`} c={pct(t,pv)>=0?'text-green-600':'text-red-500'}/>}
-          {l!==null&&!isNaN(l)&&<R l="同比" v={`${arrow(pct(t,l))} ${Math.abs(pct(t,l)).toFixed(1)}%`} c={pct(t,l)>=0?'text-green-600':'text-red-500'}/>}
+          {((!isNaN(pv)&&pv!==0)||get(yd,s)!==null)&&<R l="vs昨日" v={`${arrow(pct(t,pv||get(yd,s)))} ${Math.abs(pct(t,pv||get(yd,s))).toFixed(1)}%`} c={pct(t,pv||get(yd,s))>=0?'text-green-600':'text-red-500'}/>}
+          {l!==null&&!isNaN(l)&&<R l="vs去年" v={`${arrow(pct(t,l))} ${Math.abs(pct(t,l)).toFixed(1)}%`} c={pct(t,l)>=0?'text-green-600':'text-red-500'}/>}
         </div>}
       </div>})}
     <button onClick={gen} disabled={!ok} className={`w-full py-3.5 rounded-xl text-base font-medium ${ok?'bg-[#007AFF] text-white':'bg-gray-200 text-gray-400'}`}>生成汇报并保存</button>
@@ -122,12 +131,15 @@ function OilTemplate(){
 function ConverterTemplate(){
   const[ton,setTon]=useState('');const[liter,setLiter]=useState('')
   const[so,setSo]=useState(OILS[0])
-  const t2l=()=>{const t=parseFloat(ton);if(!isNaN(t)&&so.density)setLiter((t*1000/so.density).toFixed(0))}
-  const l2t=()=>{const l=parseFloat(liter);if(!isNaN(l)&&so.density)setTon((l*so.density/1000).toFixed(6))}
+  const[density,setDensity]=useState(String(OILS[0].density))
+  const t2l=()=>{const t=parseFloat(ton);const d=parseFloat(density);if(!isNaN(t)&&!isNaN(d)&&d>0)setLiter((t*1000/d).toFixed(0))}
+  const l2t=()=>{const l=parseFloat(liter);const d=parseFloat(density);if(!isNaN(l)&&!isNaN(d)&&d>0)setTon((l*d/1000).toFixed(6))}
+  const switchOil=o=>{setSo(o);setDensity(String(o.density));setLiter('')}
   return<div className="space-y-3">
     <div className="bg-white rounded-xl shadow-sm p-4">
       <h3 className="font-semibold text-gray-800 mb-3">吨 ↔ 升 换算器</h3>
-      <div className="mb-3"><label className="text-sm text-gray-500 block mb-1">油品</label><div className="flex flex-wrap gap-2">{OILS.filter(o=>o.density).map(o=><button key={o.key} onClick={()=>{setSo(o);setLiter('')}} className={`px-3 py-1.5 rounded-lg text-sm ${so.key===o.key?'bg-[#007AFF] text-white':'bg-gray-100 text-gray-700'}`}>{o.name}</button>)}</div><p className="text-xs text-gray-400 mt-1">密度: {so.density} kg/L</p></div>
+      <div className="mb-3"><label className="text-sm text-gray-500 block mb-1">油品</label><div className="flex flex-wrap gap-2">{OILS.filter(o=>o.density).map(o=><button key={o.key} onClick={()=>switchOil(o)} className={`px-3 py-1.5 rounded-lg text-sm ${so.key===o.key?'bg-[#007AFF] text-white':'bg-gray-100 text-gray-700'}`}>{o.name}</button>)}</div></div>
+      <div className="flex items-center gap-2 mb-3"><span className="text-sm text-gray-500 whitespace-nowrap">密度</span><input type="number" step="0.001" min="0.1" max="2" value={density} onChange={e=>setDensity(e.target.value)} className="w-24 px-3 py-1.5 border border-gray-200 rounded text-sm text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-400 text-sm">kg/L</span></div>
       <div className="flex items-center gap-2 mb-2"><input type="number" step="0.001" inputMode="decimal" value={ton} onChange={e=>{setTon(e.target.value);setLiter('')}} placeholder="吨数" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-500 text-sm w-8">吨</span></div>
       <button onClick={t2l} className="w-full py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium mb-3">换算 ↓</button>
       <div className="flex items-center gap-2 mb-2"><input type="number" step="1" inputMode="numeric" value={liter} onChange={e=>{setLiter(e.target.value);setTon('')}} placeholder="升数" className="flex-1 px-3 py-2.5 border border-gray-200 rounded-lg text-right focus:outline-none focus:border-[#007AFF]"/><span className="text-gray-500 text-sm w-8">升</span></div>
