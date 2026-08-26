@@ -1,13 +1,10 @@
 import React,{useState,useEffect,useRef,useMemo}from'react'
-
 const fmt=n=>{if(n===null||n===undefined||isNaN(n))return'--';return Number(n).toFixed(2)}
 const pct=(a,b)=>b&&b!==0?((a-b)/b*100):null
 const arrow=v=>v===null?'':v>=0?'↑':'↓'
-
 function todayStr(){const d=new Date();return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`}
 function yestStr(){const d=new Date();d.setDate(d.getDate()-1);return `${d.getFullYear()}-${(d.getMonth()+1).toString().padStart(2,'0')}-${d.getDate().toString().padStart(2,'0')}`}
 function offsetFrom(ds,days){const t=new Date(ds+'T00:00:00');t.setDate(t.getDate()+days);return `${t.getFullYear()}-${(t.getMonth()+1).toString().padStart(2,'0')}-${t.getDate().toString().padStart(2,'0')}`}
-
 const STATIONS=['镇宁2站','镇宁4站']
 const OILS=[
   {key:'diesel0',name:'0号柴油',density:0.84},
@@ -18,7 +15,6 @@ const OILS=[
 ]
 function load(k){try{return JSON.parse(localStorage.getItem(k)||'{}')}catch{return{}}}
 function save(k,db){localStorage.setItem(k,JSON.stringify(db))}
-
 // ============================================================
 // Template 0 — 柴油日报
 // ============================================================
@@ -35,7 +31,6 @@ function DieselTemplate({dataDate,setDataDate}){
     const v=get(yd,s);if(v!==null&&!ydVals[s])setYdVals(p=>({...p,[s]:String(v)}))
     const l=get(ly,s);if(l!==null&&!lyVals[s])setLyVals(p=>({...p,[s]:String(l)}))
   }},[db,dataDate])
-
   const gen=()=>{
     let r=[]
     for(const s of STATIONS){
@@ -45,11 +40,11 @@ function DieselTemplate({dataDate,setDataDate}){
       const ln=parseFloat(lyVals[s]);if(!isNaN(ln))setDB(p=>({...p,[ly+'|'+s]:{diesel:ln,date:ly,station:s}}))
       const pv=!isNaN(ydN)&&ydN!==0?ydN:(get(yd,s)),l=get(ly,s)??ln
       let line=`${s}：柴油销量${fmt(t)}吨`
-      if(pv!==null){const h=pct(t,pv);line+=`，上期销售${fmt(pv)}吨，环比${arrow(h)}${Math.abs(h).toFixed(1)}%`}
+      if(pv!==null){const d=t-pv;line+=`，较昨日${d>0?'增加':d<0?'减少':'持平'}${d!==0?fmt(Math.abs(d))+'吨':''}`;const h=pct(t,pv);line+=`，上期销售${fmt(pv)}吨，环比${arrow(h)}${Math.abs(h).toFixed(1)}%`}
       if(l!==null&&!isNaN(l)){const tb=pct(t,l);line+=`，去年同期销售${fmt(l)}吨，同比${arrow(tb)}${Math.abs(tb).toFixed(1)}%`}
       r.push(line)
     }
-    setOut(r.join('\n'))
+    setOut(`【${dataDate} 柴油日报】\n\n`+r.join('\n\n'))
   }
   const ok=STATIONS.every(s=>vals[s]&&!isNaN(parseFloat(vals[s])))
   return<div className="space-y-3">
@@ -69,7 +64,6 @@ function DieselTemplate({dataDate,setDataDate}){
     {Object.keys(db).length>0&&<HB db={db} label="柴油"/>}
   </div>
 }
-
 // ============================================================
 // Template 1 — 油品全类
 // ============================================================
@@ -80,7 +74,6 @@ function OilTemplate({dataDate}){
   const prevSums=useRef({})
   useEffect(()=>{save('oil_v2',db)},[db])
   const yd=offsetFrom(dataDate,-1)
-
   useEffect(()=>{
     const updates={}
     for(const s of STATIONS){
@@ -92,7 +85,6 @@ function OilTemplate({dataDate}){
     }
     if(Object.keys(updates).length>0)setVals(p=>({...p,...updates}))
   },[vals])
-
   const gen=()=>{
     let lines=[]
     for(const s of STATIONS){
@@ -120,7 +112,6 @@ function OilTemplate({dataDate}){
     {Object.keys(db).length>0&&<HBO db={db}/>}
   </div>
 }
-
 // ============================================================
 // Template 2 — 吨升换算
 // ============================================================
@@ -144,7 +135,6 @@ function ConverterTemplate(){
     <div className="bg-white rounded-xl shadow-sm p-4"><h3 className="font-semibold text-gray-800 mb-2">参考密度</h3><div className="space-y-1 text-sm">{OILS.filter(o=>o.density).map(o=><div key={o.key} className="flex justify-between"><span>{o.name}</span><span className="text-gray-500">{o.density} kg/L</span></div>)}</div></div>
   </div>
 }
-
 // ============================================================
 // Template 3 — 通用环比同比
 // ============================================================
@@ -174,7 +164,6 @@ function GrowthTemplate(){
     </div>
   </div>
 }
-
 // ============================================================
 // Template 4 — 百分比计算
 // ============================================================
@@ -194,15 +183,14 @@ function PercentTemplate(){
       {(!isNaN(parseFloat(vov))&&!isNaN(parseFloat(v100)))&&<div className="text-center py-2 bg-gray-50 rounded-lg text-sm font-medium">{fmt(vov)}% × {fmt(v100)} = <span className="text-[#007AFF] text-base">{fmt(parseFloat(vov)/100*parseFloat(v100))}</span></div>}
     </div>
     <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="font-semibold text-gray-800 mb-2">涨跌幅度</h3>
+      <h3 className="font-semibold text-gray-800 mb-2">变化幅度</h3>
       <div className="grid grid-cols-2 gap-2 mb-2"><div><label className="text-xs text-gray-400 block mb-0.5">变化前</label><input type="number" step="0.01" inputMode="decimal" value={v1} onChange={e=>setV1(e.target.value)} placeholder="旧值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div><div><label className="text-xs text-gray-400 block mb-0.5">变化后</label><input type="number" step="0.01" inputMode="decimal" value={v2} onChange={e=>setV2(e.target.value)} placeholder="新值" className="w-full px-3 py-2 border border-gray-200 rounded text-right focus:outline-none focus:border-[#007AFF]"/></div></div>
-      {(!isNaN(parseFloat(v1))&&!isNaN(parseFloat(v2))&&v1!=='0'&&v1!=='')&&<div className="flex justify-between text-sm bg-gray-50 rounded-lg p-3"><span>变动</span><span className="font-medium">{fmt(parseFloat(v2)-parseFloat(v1))}</span><span>幅度</span><span className={`font-medium ${parseFloat(v2)>=parseFloat(v1)?'text-green-600':'text-red-500'}`}>{arrow(pct(parseFloat(v2),parseFloat(v1)))} {Math.abs(pct(parseFloat(v2),parseFloat(v1))).toFixed(2)}%</span></div>}
+      {(!isNaN(parseFloat(v1))&&!isNaN(parseFloat(v2))&&v1!=='0'&&v1!=='')&&<div className="flex justify-between text-sm bg-gray-50 rounded-lg p-3"><span>变化</span><span className="font-medium">{fmt(parseFloat(v2)-parseFloat(v1))}</span><span>幅度</span><span className={`font-medium ${parseFloat(v2)>=parseFloat(v1)?'text-green-600':'text-red-500'}`}>{arrow(pct(parseFloat(v2),parseFloat(v1)))} {Math.abs(pct(parseFloat(v2),parseFloat(v1))).toFixed(2)}%</span></div>}
     </div>
   </div>
 }
-
 // ============================================================
-// Template 5 — 累加记账
+// Template 5 — 累积记录
 // ============================================================
 function AccumTemplate(){
   const[db,setDB]=useState(()=>load('accum_v1'))
@@ -214,7 +202,7 @@ function AccumTemplate(){
   let running=0;entries.slice().reverse().forEach(e=>{running+=parseFloat(e.val)||0;e.running=running})
   return<div className="space-y-3">
     <div className="bg-white rounded-xl shadow-sm p-4">
-      <h3 className="font-semibold text-gray-800 mb-3">累加记账</h3>
+      <h3 className="font-semibold text-gray-800 mb-3">累积记录</h3>
       <div className="flex gap-2 mb-2"><input type="text" value={newName} onChange={e=>setNewName(e.target.value)} placeholder="项目名" className="flex-1 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-[#007AFF]"/><input type="number" step="0.01" inputMode="decimal" value={newVal} onChange={e=>setNewVal(e.target.value)} placeholder="数值" className="w-24 px-3 py-2 border border-gray-200 rounded-lg text-sm text-right focus:outline-none focus:border-[#007AFF]"/><button onClick={add} className="px-4 py-2 bg-[#007AFF] text-white rounded-lg text-sm font-medium">加</button></div>
     </div>
     {entries.length>0&&<div className="bg-white rounded-xl shadow-sm p-4">
@@ -223,7 +211,6 @@ function AccumTemplate(){
     </div>}
   </div>
 }
-
 // ============================================================
 // Export helper
 // ============================================================
@@ -242,7 +229,6 @@ function exportCSV(){
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`数据导出_${todayStr()}.csv`;a.click()
   setTimeout(()=>URL.revokeObjectURL(a.href),2000)
 }
-
 // ============================================================
 // Main
 // ============================================================
@@ -253,7 +239,7 @@ export default function Tracker(){
     {id:2,name:'吨升换算'},
     {id:3,name:'环比同比'},
     {id:4,name:'百分比'},
-    {id:5,name:'累加记账'},
+    {id:5,name:'累积记录'},
   ]
   const[tab,setTab]=useState(0)
   const[dataDate,setDataDate]=useState(yestStr())
@@ -280,7 +266,6 @@ export default function Tracker(){
     </div>
   </div>
 }
-
 // Shared
 function R({l,v,c}){return<div className="flex justify-between"><span className="text-gray-400">{l}</span><span className={`font-medium ${c||''}`}>{v}</span></div>}
 function OB({out,cp,onCopy}){return<div className="bg-white rounded-xl shadow-sm p-4"><div className="flex justify-between items-center mb-3"><h3 className="text-sm font-semibold text-gray-800">结果</h3><button onClick={onCopy} className="px-4 py-1.5 bg-[#007AFF] text-white text-sm rounded-lg">{cp?'已复制 ✓':'复制'}</button></div><pre className="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed bg-gray-50 rounded-lg p-3">{out}</pre></div>}
