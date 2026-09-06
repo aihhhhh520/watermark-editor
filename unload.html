@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#ffffff">
+<title>卸油核算</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;background:#f2f2f7;color:#1c1c1e}
+body{padding-bottom:30px}
+.header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.92);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:12px 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #e5e5ea}
+.header h1{font-size:18px;font-weight:600}
+.header .btns{display:flex;gap:8px}
+.header button{border:none;background:#e5e5ea;color:#1c1c1e;font-size:13px;padding:7px 12px;border-radius:8px;font-weight:500}
+.header button:active{background:#d1d1d6}
+.station{margin:12px}
+.station-head{display:flex;justify-content:space-between;align-items:center;margin:10px 2px 8px}
+.station-title{font-size:15px;font-weight:600;color:#3a3a3c}
+.station-title small{font-size:12px;font-weight:400;color:#8e8e93;margin-left:6px}
+.clear-btn{font-size:12px;color:#007aff;background:none;border:none;padding:4px 8px}
+.tank{background:#fff;border-radius:14px;padding:14px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.tank-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.tank-name{font-size:16px;font-weight:600}
+.tank-oil{font-size:11px;padding:3px 9px;border-radius:6px;color:#fff;font-weight:500}
+.oil-95{background:#e74c3c}.oil-92{background:#27ae60}.oil-98{background:#8e44ad}.oil-diesel{background:#2980b9}
+.safe{font-size:12px;color:#8e8e93;margin-bottom:10px}
+.row{display:flex;align-items:center;gap:8px;margin-top:9px}
+.row .lbl{font-size:13px;color:#6e6e73;width:64px;flex-shrink:0}
+.row input{flex:1;border:1px solid #d1d1d6;border-radius:9px;padding:10px 12px;font-size:18px;text-align:right;background:#fafafa;font-variant-numeric:tabular-nums}
+.row input:focus{border-color:#007aff;background:#fff;outline:none}
+.unit{font-size:13px;color:#8e8e93;width:22px;text-align:left}
+.res{margin-top:10px;padding:10px 12px;border-radius:10px;font-size:14px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
+.res.ok{background:#e8f5e9;color:#2e7d32}
+.res.warn{background:#fff8e1;color:#e65100}
+.res.over{background:#ffebee;color:#c62828}
+.res .num{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.res.muted{background:#f2f2f7;color:#8e8e93;font-weight:500}
+.plan-res{margin-top:6px}
+.modal-mask{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;align-items:flex-end;justify-content:center}
+.modal-mask.show{display:flex}
+.modal{background:#fff;width:100%;max-width:500px;border-radius:16px 16px 0 0;padding:18px;max-height:85vh;overflow-y:auto}
+.modal h2{font-size:17px;margin-bottom:6px}
+.modal .tip{font-size:12px;color:#8e8e93;margin-bottom:14px}
+.set-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.set-row .sn{font-size:13px;color:#6e6e73;width:110px;flex-shrink:0}
+.set-row input{flex:1;border:1px solid #d1d1d6;border-radius:8px;padding:9px 10px;font-size:16px;text-align:right}
+.set-row input:focus{border-color:#007aff;outline:none}
+.modal-actions{display:flex;gap:10px;margin-top:16px}
+.modal-actions button{flex:1;padding:12px;border-radius:10px;font-size:15px;font-weight:600;border:none}
+.btn-save{background:#007aff;color:#fff}
+.btn-cancel{background:#e5e5ea;color:#1c1c1e}
+.divider{height:1px;background:#e5e5ea;margin:14px 0}
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>卸油核算</h1>
+  <div class="btns">
+    <button id="clearAll">全部清空</button>
+    <button id="openSet">设置</button>
+  </div>
+</div>
+
+<div id="app"></div>
+
+<div class="modal-mask" id="mask">
+  <div class="modal">
+    <h2>安全容积设置</h2>
+    <div class="tip">修改各罐安全容积（升），保存后生效。近两年无需改动可忽略。</div>
+    <div id="setList"></div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelSet">取消</button>
+      <button class="btn-save" id="saveSet">保存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const DEFAULT = {
+  station4: [
+    {id:'s4-1',name:'1号罐',oil:'0号柴油',cls:'oil-diesel',safe:36531},
+    {id:'s4-3',name:'3号罐',oil:'95号汽油',cls:'oil-95',safe:36512},
+    {id:'s4-4',name:'4号罐',oil:'92号汽油',cls:'oil-92',safe:36610},
+    {id:'s4-5',name:'5号罐',oil:'98号汽油',cls:'oil-98',safe:26994},
+  ],
+  station2: [
+    {id:'s2-1',name:'1号罐',oil:'95号汽油',cls:'oil-95',safe:45021},
+    {id:'s2-2',name:'2号罐',oil:'92号汽油',cls:'oil-92',safe:45202},
+    {id:'s2-3',name:'3号罐',oil:'0号柴油',cls:'oil-diesel',safe:44875},
+    {id:'s2-4',name:'4号罐',oil:'0号柴油',cls:'oil-diesel',safe:44834},
+  ]
+};
+
+const STORE_KEY = 'unload_safe_v1';
+const INPUT_KEY = 'unload_input_v1';
+
+function loadSafe(){
+  try{
+    const s = JSON.parse(localStorage.getItem(STORE_KEY)||'{}');
+    if(!s.station4||!s.station2) return JSON.parse(JSON.stringify(DEFAULT));
+    // merge
+    const out = JSON.parse(JSON.stringify(DEFAULT));
+    for(const st of ['station4','station2']){
+      out[st].forEach(t=>{
+        const found = s[st].find(x=>x.id===t.id);
+        if(found && typeof found.safe==='number' && found.safe>0) t.safe=found.safe;
+      });
+    }
+    return out;
+  }catch(e){ return JSON.parse(JSON.stringify(DEFAULT)); }
+}
+function saveSafe(data){ localStorage.setItem(STORE_KEY, JSON.stringify(data)); }
+function loadInputs(){ try{return JSON.parse(localStorage.getItem(INPUT_KEY)||'{}')}catch(e){return{}} }
+function saveInputs(m){ localStorage.setItem(INPUT_KEY, JSON.stringify(m)); }
+
+let DATA = loadSafe();
+let inputs = loadInputs();
+
+function fmt(n){ return Math.round(n).toLocaleString('zh-CN'); }
+
+function findTank(id){
+  for(const st of ['station4','station2']){
+    const t = DATA[st].find(x=>x.id===id);
+    if(t) return t;
+  }
+  return null;
+}
+
+function calc(id){
+  const t = findTank(id);
+  if(!t) return;
+  const cur = parseFloat(inputs[id+'_cur']||'');
+  const plan = parseFloat(inputs[id+'_plan']||'');
+  const elCur = document.getElementById('cur_'+id);
+  const elPlan = document.getElementById('plan_'+id);
+  const elUnload = document.getElementById('unload_'+id);
+  const elRemain = document.getElementById('remain_'+id);
+  if(elCur) elCur.value = inputs[id+'_cur']||'';
+  if(elPlan) elPlan.value = inputs[id+'_plan']||'';
+
+  if(isNaN(cur)){
+    elUnload.className='res muted';
+    elUnload.innerHTML='<span>可卸升数</span><span class="num">—</span>';
+    elRemain.className='res muted plan-res';
+    elRemain.innerHTML='<span>计划来油后</span><span class="num">—</span>';
+    return;
+  }
+  const unload = t.safe - cur;
+  if(unload < 0){
+    elUnload.className='res over';
+    elUnload.innerHTML='<span>已超安全容积</span><span class="num">'+fmt(-unload)+' 升</span>';
+  }else{
+    elUnload.className='res ok';
+    elUnload.innerHTML='<span>可卸升数</span><span class="num">'+fmt(unload)+' 升</span>';
+  }
+
+  if(isNaN(plan)){
+    elRemain.className='res muted plan-res';
+    elRemain.innerHTML='<span>计划来油后</span><span class="num">—</span>';
+  }else{
+    const remain = unload - plan;
+    if(remain >= 0){
+      elRemain.className='res ok plan-res';
+      elRemain.innerHTML='<span>计划来油 '+fmt(plan)+' 升后</span><span class="num">还能装 '+fmt(remain)+' 升</span>';
+    }else{
+      elRemain.className='res over plan-res';
+      elRemain.innerHTML='<span>计划来油 '+fmt(plan)+' 升</span><span class="num">超 '+fmt(-remain)+' 升装不下</span>';
+    }
+  }
+}
+
+function render(){
+  const app = document.getElementById('app');
+  let html = '';
+  // 4站 first
+  const stations = [
+    {key:'station4',title:'镇宁4站',note:'常用'},
+    {key:'station2',title:'镇宁2站',note:''},
+  ];
+  for(const st of stations){
+    html += '<div class="station" data-st="'+st.key+'">';
+    html += '<div class="station-head"><span class="station-title">'+st.title+(st.note?'<small>'+st.note+'</small>':'')+'</span><button class="clear-btn" data-clear="'+st.key+'">清空本站</button></div>';
+    for(const t of DATA[st.key]){
+      html += '<div class="tank">';
+      html += '<div class="tank-top"><span class="tank-name">'+t.name+'</span><span class="tank-oil '+t.cls+'">'+t.oil+'</span></div>';
+      html += '<div class="safe">安全容积 '+fmt(t.safe)+' 升</div>';
+      html += '<div class="row"><span class="lbl">当前容积</span><input id="cur_'+t.id+'" type="text" inputmode="numeric" pattern="[0-9]*" data-id="'+t.id+'" data-field="cur" placeholder="输入升数"><span class="unit">升</span></div>';
+      html += '<div class="res muted" id="unload_'+t.id+'"><span>可卸升数</span><span class="num">—</span></div>';
+      html += '<div class="row"><span class="lbl">计划来油</span><input id="plan_'+t.id+'" type="text" inputmode="numeric" pattern="[0-9]*" data-id="'+t.id+'" data-field="plan" placeholder="可选"><span class="unit">升</span></div>';
+      html += '<div class="res muted plan-res" id="remain_'+t.id+'"><span>计划来油后</span><span class="num">—</span></div>';
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  app.innerHTML = html;
+
+  // bind inputs
+  app.querySelectorAll('input[data-id]').forEach(inp=>{
+    inp.addEventListener('input', e=>{
+      const id = e.target.dataset.id;
+      const f = e.target.dataset.field;
+      inputs[id+'_'+f] = e.target.value.replace(/[^\d.]/g,'');
+      saveInputs(inputs);
+      calc(id);
+    });
+  });
+  app.querySelectorAll('[data-clear]').forEach(b=>{
+    b.addEventListener('click', e=>{
+      const st = e.target.dataset.clear;
+      DATA[st].forEach(t=>{ delete inputs[t.id+'_cur']; delete inputs[t.id+'_plan']; });
+      saveInputs(inputs);
+      DATA[st].forEach(t=>calc(t.id));
+    });
+  });
+
+  // apply saved inputs
+  for(const st of ['station4','station2']){
+    DATA[st].forEach(t=>calc(t.id));
+  }
+}
+
+document.getElementById('clearAll').addEventListener('click', ()=>{
+  inputs = {};
+  saveInputs(inputs);
+  render();
+});
+
+// Settings modal
+const mask = document.getElementById('mask');
+const setList = document.getElementById('setList');
+document.getElementById('openSet').addEventListener('click', ()=>{
+  let h='';
+  for(const st of [{k:'station4',n:'镇宁4站'},{k:'station2',n:'镇宁2站'}]){
+    h += '<div style="font-size:13px;color:#6e6e73;margin:10px 0 6px">'+st.n+'</div>';
+    DATA[st.k].forEach(t=>{
+      h += '<div class="set-row"><span class="sn">'+t.name+' '+t.oil+'</span><input type="text" inputmode="numeric" data-sid="'+t.id+'" value="'+t.safe+'"><span class="unit">升</span></div>';
+    });
+    h += '<div class="divider"></div>';
+  }
+  setList.innerHTML = h;
+  mask.classList.add('show');
+});
+document.getElementById('cancelSet').addEventListener('click', ()=>mask.classList.remove('show'));
+mask.addEventListener('click', e=>{ if(e.target===mask) mask.classList.remove('show'); });
+document.getElementById('saveSet').addEventListener('click', ()=>{
+  setList.querySelectorAll('input[data-sid]').forEach(inp=>{
+    const id = inp.dataset.sid;
+    const v = parseFloat(inp.value.replace(/[^\d.]/g,''));
+    const t = findTank(id);
+    if(t && !isNaN(v) && v>0) t.safe = v;
+  });
+  saveSafe(DATA);
+  mask.classList.remove('show');
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
